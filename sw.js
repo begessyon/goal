@@ -1,6 +1,6 @@
 const CACHE_NAME = 'goal-v1';
 const FILES = [
-  './goal.html',
+  './goal-3.html',
   './manifest.json'
 ];
 
