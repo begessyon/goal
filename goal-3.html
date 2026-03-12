@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>100万円カウントダウン</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c9a84c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="100万円">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700;900&family=Bebas+Neue&display=swap');
+
+  :root {
+    --bg: #0d0d0d;
+    --card: #161616;
+    --border: #2a2a2a;
+    --gold: #c9a84c;
+    --gold-light: #f0cc6e;
+    --green: #2ecc71;
+    --red: #e74c3c;
+    --text: #e8e8e8;
+    --muted: #666;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 20px 16px 40px;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .header {
+    text-align: center;
+    padding: 32px 0 24px;
+  }
+
+  .header h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.8rem;
+    letter-spacing: 3px;
+    background: linear-gradient(135deg, var(--gold), var(--gold-light), var(--gold));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.1;
+  }
+
+  .header p {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 6px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+
+  .input-group {
+    margin-bottom: 20px;
+  }
+
+  label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  input[type="number"] {
+    width: 100%;
+    background: #0d0d0d;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.8rem;
+    letter-spacing: 2px;
+    padding: 12px 16px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input[type="number"]:focus {
+    border-color: var(--gold);
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { opacity: 0.3; }
+
+  .result-box {
+    background: linear-gradient(135deg, #1a1400, #1a1a00);
+    border: 1px solid #3a3000;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    margin-top: 8px;
+  }
+
+  .result-box .trades-count {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 4rem;
+    color: var(--gold-light);
+    line-height: 1;
+    letter-spacing: 4px;
+  }
+
+  .result-box .trades-label {
+    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  .result-box.error {
+    background: #1a0000;
+    border-color: #3a0000;
+  }
+
+  .result-box.error .trades-count {
+    color: var(--red);
+    font-size: 1.2rem;
+    font-family: 'Noto Sans JP', sans-serif;
+    letter-spacing: 0;
+  }
+
+  .progress-section {
+    margin-top: 16px;
+  }
+
+  .progress-bar-bg {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 8px 0;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 3px;
+    transition: width 0.4s ease;
+  }
+
+  .progress-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  .table-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .table-header {
+    display: grid;
+    grid-template-columns: 60px 1fr 1fr;
+    padding: 12px 20px;
+    background: #1a1a1a;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .table-header span:not(:first-child) { text-align: right; }
+
+  .table-body {
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .table-body::-webkit-scrollbar { width: 4px; }
+  .table-body::-webkit-scrollbar-track { background: transparent; }
+  .table-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .table-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 1fr;
+    padding: 11px 20px;
+    border-bottom: 1px solid #1e1e1e;
+    font-size: 0.85rem;
+    transition: background 0.15s;
+    animation: fadeIn 0.3s ease both;
+  }
+
+  .table-row:last-child { border-bottom: none; }
+  .table-row:hover { background: #1e1e1e; }
+
+  .table-row .num { color: var(--muted); font-size: 0.75rem; }
+  .table-row .profit { text-align: right; color: var(--green); font-size: 0.7rem; }
+  .table-row .amount {
+    text-align: right;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem;
+    letter-spacing: 1px;
+    color: var(--text);
+  }
+
+  .table-row.milestone { background: #1a1400; }
+  .table-row.milestone .amount { color: var(--gold-light); }
+  .table-row.goal-row { background: #0a1a0a; }
+  .table-row.goal-row .amount { color: var(--green); }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>100万円<br>カウントダウン</h1>
+    <p>複利シミュレーター</p>
+  </div>
+
+  <div class="card">
+    <div class="input-group">
+      <label>現在の資金（円）</label>
+      <input type="number" id="capital" value="10000" min="1" step="1000" placeholder="例: 10000">
+    </div>
+    <div class="input-group" style="margin-bottom:0">
+      <label>1回の目標利回り（%）</label>
+      <input type="number" id="rate" value="10" min="0.1" max="1000" step="0.1" placeholder="例: 10">
+    </div>
+
+    <div class="result-box" id="result-box" style="margin-top:20px">
+      <div class="trades-count" id="trades-count">--</div>
+      <div class="trades-label">100万円まであと何トレード？</div>
+    </div>
+
+    <div class="progress-section" id="progress-section" style="display:none">
+      <div class="progress-labels">
+        <span id="progress-start"></span>
+        <span id="progress-pct"></span>
+        <span>¥1,000,000</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progress-bar" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-header">
+      <span>回数</span>
+      <span>利益</span>
+      <span>資金</span>
+    </div>
+    <div class="table-body" id="table-body">
+      <div class="empty-state">数値を入力してください</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const GOAL = 1_000_000;
+
+  function fmt(n) {
+    return '¥' + Math.round(n).toLocaleString('ja-JP');
+  }
+
+  function calculate() {
+    const capInput = document.getElementById('capital').value.trim();
+    const rateInput = document.getElementById('rate').value.trim();
+
+    const capital = parseFloat(capInput);
+    const rate = parseFloat(rateInput);
+
+    const resultBox = document.getElementById('result-box');
+    const tradesCount = document.getElementById('trades-count');
+    const tableBody = document.getElementById('table-body');
+    const progressSection = document.getElementById('progress-section');
+
+    // バリデーション
+    if (isNaN(capital) || isNaN(rate) || capInput === '' || rateInput === '') {
+      resultBox.className = 'result-box';
+      tradesCount.textContent = '--';
+      tableBody.innerHTML = '<div class="empty-state">数値を入力してください</div>';
+      progressSection.style.display = 'none';
+      return;
+    }
+
+    if (capital <= 0) {
+      resultBox.className = 'result-box error';
+      tradesCount.textContent = '資金は0より大きい値を入力';
+      tableBody.innerHTML = '<div class="empty-state">--</div>';
+      progressSection.style.display = 'none';
+      return;
+    }
+
+    if (rate <= 0) {
+      resultBox.className = 'result-box error';
+      tradesCount.textContent = '利回りは0より大きい値を入力';
+      tableBody.innerHTML = '<div class="empty-state">--</div>';
+      progressSection.style.display = 'none';
+      return;
+    }
+
+    if (capital >= GOAL) {
+      resultBox.className = 'result-box error';
+      tradesCount.textContent = 'すでに100万円達成！';
+      tableBody.innerHTML = '<div class="empty-state">おめでとうございます 🎉</div>';
+      progressSection.style.display = 'none';
+      return;
+    }
+
+    // 計算
+    const multiplier = 1 + rate / 100;
+    let current = capital;
+    let trades = 0;
+    const rows = [];
+    const MAX_TRADES = 10000;
+
+    while (current < GOAL && trades < MAX_TRADES) {
+      const prev = current;
+      current = current * multiplier;
+      trades++;
+      const profit = current - prev;
+      rows.push({ trades, current, profit });
+      if (current >= GOAL) break;
+    }
+
+    // 結果表示
+    resultBox.className = 'result-box';
+    tradesCount.textContent = trades.toLocaleString('ja-JP');
+
+    // プログレスバー
+    const pct = Math.min((capital / GOAL) * 100, 100);
+    progressSection.style.display = 'block';
+    document.getElementById('progress-start').textContent = fmt(capital);
+    document.getElementById('progress-pct').textContent = pct.toFixed(1) + '%達成';
+    document.getElementById('progress-bar').style.width = pct + '%';
+
+    // テーブル
+    const milestones = [100000, 200000, 300000, 500000, 700000];
+    let html = '';
+    let lastMilestoneShown = new Set();
+
+    // 表示する行を間引く（多すぎる場合）
+    let displayRows = rows;
+    if (rows.length > 100) {
+      const step = Math.ceil(rows.length / 50);
+      displayRows = rows.filter((r, i) => {
+        if (i === rows.length - 1) return true;
+        if (i % step === 0) return true;
+        // マイルストーン付近は必ず表示
+        for (const m of milestones) {
+          if (r.current >= m && !lastMilestoneShown.has(m)) {
+            lastMilestoneShown.add(m);
+            return true;
+          }
+        }
+        return false;
+      });
+    }
+
+    displayRows.forEach((row, i) => {
+      const isGoal = row.trades === trades;
+      const isMilestone = milestones.some(m => {
+        const prev = i > 0 ? displayRows[i-1].current : capital;
+        return prev < m && row.current >= m;
+      });
+      const cls = isGoal ? 'goal-row' : isMilestone ? 'milestone' : '';
+      html += `
+        <div class="table-row ${cls}" style="animation-delay:${Math.min(i * 0.02, 0.5)}s">
+          <span class="num">${row.trades}</span>
+          <span class="profit">+${fmt(row.profit)}</span>
+          <span class="amount">${fmt(row.current)}</span>
+        </div>`;
+    });
+
+    tableBody.innerHTML = html;
+  }
+
+  // イベント登録
+  document.getElementById('capital').addEventListener('input', calculate);
+  document.getElementById('rate').addEventListener('input', calculate);
+
+  // 初期計算
+  calculate();
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js');
+  }
+</script>
+</body>
+</html>
