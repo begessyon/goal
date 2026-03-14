@@ -448,8 +448,8 @@ textarea { resize: none; font-family: 'Zen Kaku Gothic New', sans-serif; font-si
     <div class="modal-body">
       <div class="form-group">
         <label>Claude API Key</label>
-        <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off">
-        <div class="settings-note">キーはこのデバイスのみに保存されます。<br>console.anthropic.com で取得できます。</div>
+        <input type="password" id="api-key-input" placeholder="AIza..." autocomplete="off">
+        <div class="settings-note">キーはこのデバイスのみに保存されます。<br>aistudio.google.com で取得できます。</div>
       </div>
       <button class="btn-save" onclick="saveApiKey()">保存する</button>
       <div class="api-status" id="api-status"></div>
@@ -917,19 +917,22 @@ ${recentTrades || 'なし'}${strategyContext}`;
       return { role: m.role, content: contentArr };
     });
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    // Gemini用メッセージ構築
+    const geminiContents = chatHistory.slice(-10).map(m => {
+      const parts = [];
+      (m.images||[]).forEach(src => {
+        parts.push({ inline_data: { mime_type: src.match(/data:(.*?);/)[1], data: src.split(',')[1] }});
+      });
+      parts.push({ text: m.content });
+      return { role: m.role === 'user' ? 'user' : 'model', parts };
+    });
+
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-opus-4-5',
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: geminiContents
       })
     });
 
@@ -938,7 +941,7 @@ ${recentTrades || 'なし'}${strategyContext}`;
 
     if (data.error) throw new Error(data.error.message);
 
-    const reply = data.content.filter(c=>c.type==='text').map(c=>c.text).join('');
+    const reply = data.candidates?.[0]?.content?.parts?.map(p=>p.text).join('') || '応答がありませんでした';
     addMessage('assistant', reply);
     chatHistory[chatHistory.length-1] = { role:'assistant', content: reply, images:[] };
 
@@ -966,7 +969,7 @@ function closeSettings() {
 
 function saveApiKey() {
   const key = document.getElementById('api-key-input').value.trim();
-  if (!key.startsWith('sk-ant-')) { alert('正しいAPIキーを入力してください（sk-ant-...）'); return; }
+  if (!key.startsWith('AIza')) { alert('正しいAPIキーを入力してください（AIza...）'); return; }
   localStorage.setItem('claude_api_key', key);
   const st = document.getElementById('api-status');
   st.textContent = '✓ 保存しました';
