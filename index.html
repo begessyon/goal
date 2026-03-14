@@ -638,9 +638,9 @@ function renderModalPreviews() {
       <img src="${src}" alt="preview">
       <button class="img-preview-del" onclick="removePending(${i})">×</button>
     </div>`).join('');
-}
   document.getElementById("btn-analyze").style.display = pendingImages.length > 0 ? "block" : "none";
   document.getElementById("analyze-result").style.display = "none";
+}
 
 function removePending(i) {
   pendingImages.splice(i,1);
