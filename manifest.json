@@ -1,11 +1,11 @@
 {
-  "name": "100万円カウントダウン",
-  "short_name": "100万円",
-  "description": "複利トレードシミュレーター",
-  "start_url": "./goal-3.html",
+  "name": "FX収支ログ",
+  "short_name": "FX LOG",
+  "description": "FXトレード収支記録アプリ",
+  "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0d0d0d",
-  "theme_color": "#c9a84c",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
   "orientation": "portrait",
   "icons": [
     {

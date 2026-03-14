@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FX収支ログ</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="FX LOG">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Zen+Kaku+Gothic+New:wght@300;400;700&display=swap');
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #111;
+  --surface2: #1a1a1a;
+  --border: #222;
+  --accent: #00ff88;
+  --text: #e8e8e8;
+  --muted: #555;
+  --win: #00cc66;
+  --loss: #ff3355;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Zen Kaku Gothic New', sans-serif;
+  min-height: 100vh;
+  padding-bottom: 70px;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(10,10,10,0.97);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header h1 {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.95rem;
+  letter-spacing: 3px;
+  color: var(--accent);
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.summary-item {
+  background: var(--surface);
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.s-label {
+  font-size: 0.58rem;
+  color: var(--muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.s-value {
+  font-family: 'DM Mono', monospace;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.s-value.pos { color: var(--win); }
+.s-value.neg { color: var(--loss); }
+.s-value.neu { color: var(--text); }
+
+.tabs {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  flex: 1;
+  padding: 11px 4px;
+  text-align: center;
+  font-size: 0.7rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* カレンダー */
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 6px;
+}
+
+.cal-nav button {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.cal-nav button:active { opacity: 0.6; }
+
+.cal-month { font-family: 'DM Mono', monospace; font-size: 1rem; letter-spacing: 2px; text-align: center; }
+.cal-month-pnl { font-size: 0.72rem; text-align: center; font-family: 'DM Mono', monospace; margin-top: 2px; }
+
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 8px 8px 4px;
+}
+
+.cal-weekday {
+  text-align: center;
+  font-size: 0.62rem;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+.cal-weekday:first-child { color: #ff6688; }
+.cal-weekday:last-child { color: #6688ff; }
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  padding: 0 8px 10px;
+}
+
+.cal-day {
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+  padding: 3px 2px;
+  min-height: 46px;
+}
+
+.cal-day:active { opacity: 0.7; }
+.cal-day.empty { cursor: default; }
+.cal-day.today { background: var(--surface2); }
+.cal-day.selected { background: #152215; outline: 1px solid var(--accent); }
+.cal-day.sun .day-num { color: #ff6688; }
+.cal-day.sat .day-num { color: #6688ff; }
+
+.day-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.82rem;
+  line-height: 1;
+  color: var(--text);
+}
+
+.cal-day.other-month .day-num { color: #2a2a2a; }
+
+.day-pnl {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.52rem;
+  margin-top: 3px;
+  line-height: 1;
+}
+
+/* 詳細 */
+.day-detail {
+  margin: 0 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.detail-header {
+  padding: 12px 16px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.detail-date {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+
+.detail-total {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.trade-form {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+input, select, textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.9rem;
+  padding: 9px 10px;
+  outline: none;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+}
+
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+select option { background: #1a1a1a; }
+textarea {
+  resize: none;
+  height: 58px;
+  font-family: 'Zen Kaku Gothic New', sans-serif;
+  font-size: 0.82rem;
+  margin-bottom: 10px;
+}
+
+.btn-add {
+  width: 100%;
+  padding: 11px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-add:active { opacity: 0.7; }
+
+.day-trades { padding: 8px 16px; }
+
+.trade-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.trade-item:last-child { border-bottom: none; }
+
+.trade-pair { font-family: 'DM Mono', monospace; font-size: 0.8rem; letter-spacing: 1px; }
+.trade-meta { font-size: 0.62rem; color: var(--muted); margin-top: 2px; }
+.trade-memo { font-size: 0.7rem; color: #888; margin-top: 3px; }
+
+.trade-right { display: flex; align-items: center; gap: 10px; }
+
+.trade-pnl { font-family: 'DM Mono', monospace; font-size: 0.9rem; font-weight: 500; }
+
+.btn-del {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.no-trades {
+  padding: 16px 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+}
+
+/* グラフ */
+.chart-section { padding: 16px; }
+
+.chart-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.chart-title {
+  font-size: 0.62rem;
+  color: var(--muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+canvas { max-height: 180px; }
+
+.pair-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 11px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.pair-name { font-family: 'DM Mono', monospace; font-size: 0.82rem; }
+.pair-sub { font-size: 0.62rem; color: var(--muted); margin-top: 2px; }
+.pair-pnl { font-family: 'DM Mono', monospace; font-size: 0.88rem; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>FX LOG</h1>
+  <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted)" id="header-sub"></div>
+</div>
+
+<div class="summary">
+  <div class="summary-item">
+    <div class="s-label">累計</div>
+    <div class="s-value neu" id="total-pnl">¥0</div>
+  </div>
+  <div class="summary-item">
+    <div class="s-label">今月</div>
+    <div class="s-value neu" id="month-pnl">¥0</div>
+  </div>
+  <div class="summary-item">
+    <div class="s-label">勝率</div>
+    <div class="s-value neu" id="win-rate">--%</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('cal')">カレンダー</div>
+  <div class="tab" onclick="switchTab('chart')">グラフ</div>
+</div>
+
+<div class="panel active" id="panel-cal">
+  <div class="cal-nav">
+    <button onclick="changeMonth(-1)">‹</button>
+    <div>
+      <div class="cal-month" id="cal-month-label"></div>
+      <div class="cal-month-pnl" id="cal-month-pnl"></div>
+    </div>
+    <button onclick="changeMonth(1)">›</button>
+  </div>
+
+  <div class="cal-weekdays">
+    <div class="cal-weekday">日</div>
+    <div class="cal-weekday">月</div>
+    <div class="cal-weekday">火</div>
+    <div class="cal-weekday">水</div>
+    <div class="cal-weekday">木</div>
+    <div class="cal-weekday">金</div>
+    <div class="cal-weekday">土</div>
+  </div>
+
+  <div class="cal-grid" id="cal-grid"></div>
+
+  <div class="day-detail" id="day-detail">
+    <div class="detail-header">
+      <div class="detail-date" id="detail-date">日付をタップ</div>
+      <div class="detail-total" id="detail-total"></div>
+    </div>
+
+    <div class="trade-form" id="trade-form" style="display:none">
+      <div class="form-row">
+        <div class="form-group">
+          <label>損益（円）</label>
+          <input type="number" id="pnl" placeholder="例: 3500">
+        </div>
+        <div class="form-group">
+          <label>通貨ペア</label>
+          <select id="pair">
+            <option>USD/JPY</option>
+            <option>EUR/JPY</option>
+            <option>GBP/JPY</option>
+            <option>AUD/JPY</option>
+            <option>EUR/USD</option>
+            <option>GBP/USD</option>
+            <option>XAU/USD</option>
+            <option>その他</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>回数</label>
+          <input type="number" id="trade-count" value="1" min="1">
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end">
+          <button class="btn-add" onclick="addTrade()">+ 追加</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>メモ</label>
+        <textarea id="memo" placeholder="エントリー理由、反省など..."></textarea>
+      </div>
+    </div>
+
+    <div class="day-trades" id="day-trades"></div>
+  </div>
+</div>
+
+<div class="panel" id="panel-chart">
+  <div class="chart-section">
+    <div class="chart-box">
+      <div class="chart-title">損益推移（累計）</div>
+      <canvas id="chart-cum"></canvas>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">月別損益</div>
+      <canvas id="chart-monthly"></canvas>
+    </div>
+    <div class="chart-title" style="margin-bottom:8px">通貨ペア別</div>
+    <div id="pair-stats"></div>
+  </div>
+</div>
+
+<script>
+const KEY = 'fx_v2';
+let trades = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } })();
+let calYear, calMonth, selectedDate;
+let charts = {};
+
+function save() { localStorage.setItem(KEY, JSON.stringify(trades)); }
+
+function fmt(n) {
+  const abs = '¥' + Math.abs(Math.round(n)).toLocaleString('ja-JP');
+  return (n > 0 ? '+' : n < 0 ? '-' : '') + abs;
+}
+
+function fmtDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
+}
+
+function init() {
+  const now = new Date();
+  calYear = now.getFullYear();
+  calMonth = now.getMonth();
+  selectedDate = now.toISOString().split('T')[0];
+  updateSummary();
+  renderCalendar();
+  renderDayDetail();
+}
+
+function updateSummary() {
+  const total = trades.reduce((s, t) => s + t.pnl, 0);
+  const now = new Date();
+  const month = trades.filter(t => {
+    const d = new Date(t.date + 'T00:00:00');
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  }).reduce((s, t) => s + t.pnl, 0);
+  const wins = trades.filter(t => t.pnl > 0).length;
+  const rate = trades.length ? Math.round(wins / trades.length * 100) : null;
+
+  const te = document.getElementById('total-pnl');
+  te.textContent = fmt(total);
+  te.className = 's-value ' + (total > 0 ? 'pos' : total < 0 ? 'neg' : 'neu');
+
+  const me = document.getElementById('month-pnl');
+  me.textContent = fmt(month);
+  me.className = 's-value ' + (month > 0 ? 'pos' : month < 0 ? 'neg' : 'neu');
+
+  document.getElementById('win-rate').textContent = rate !== null ? rate + '%' : '--%';
+}
+
+function renderCalendar() {
+  document.getElementById('cal-month-label').textContent = `${calYear}年${calMonth + 1}月`;
+
+  const dayMap = {};
+  trades.forEach(t => { dayMap[t.date] = (dayMap[t.date] || 0) + t.pnl; });
+
+  const monthPnl = Object.entries(dayMap)
+    .filter(([d]) => { const dt = new Date(d + 'T00:00:00'); return dt.getFullYear() === calYear && dt.getMonth() === calMonth; })
+    .reduce((s, [, v]) => s + v, 0);
+
+  const mpe = document.getElementById('cal-month-pnl');
+  if (monthPnl !== 0) {
+    mpe.textContent = fmt(monthPnl);
+    mpe.style.color = monthPnl > 0 ? 'var(--win)' : 'var(--loss)';
+  } else { mpe.textContent = ''; }
+
+  const today = new Date().toISOString().split('T')[0];
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const prevDays = new Date(calYear, calMonth, 0).getDate();
+
+  let html = '';
+
+  for (let i = 0; i < firstDay; i++) {
+    const d = prevDays - firstDay + 1 + i;
+    const dow = i === 0 ? 'sun' : i === 6 ? 'sat' : '';
+    html += `<div class="cal-day empty other-month ${dow}"><span class="day-num">${d}</span></div>`;
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = new Date(ds + 'T00:00:00').getDay();
+    const pnl = dayMap[ds];
+    const dowCls = dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
+    const cls = [ds===today?'today':'', ds===selectedDate?'selected':'', dowCls].filter(Boolean).join(' ');
+
+    let pnlHtml = '';
+    if (pnl !== undefined) {
+      const color = pnl > 0 ? 'var(--win)' : 'var(--loss)';
+      const v = Math.abs(Math.round(pnl)).toLocaleString('ja-JP');
+      pnlHtml = `<div class="day-pnl" style="color:${color}">${pnl>0?'+':'−'}¥${v}</div>`;
+    }
+
+    html += `<div class="cal-day ${cls}" onclick="selectDate('${ds}')">
+      <span class="day-num">${d}</span>${pnlHtml}
+    </div>`;
+  }
+
+  const lastDow = new Date(calYear, calMonth, daysInMonth).getDay();
+  for (let i = 1; i <= 6 - lastDow; i++) {
+    const dow = (lastDow + i) === 6 ? 'sat' : '';
+    html += `<div class="cal-day empty other-month ${dow}"><span class="day-num">${i}</span></div>`;
+  }
+
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+function changeMonth(delta) {
+  calMonth += delta;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderCalendar();
+}
+
+function selectDate(ds) {
+  selectedDate = ds;
+  renderCalendar();
+  renderDayDetail();
+  document.getElementById('day-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderDayDetail() {
+  if (!selectedDate) return;
+  document.getElementById('detail-date').textContent = fmtDate(selectedDate);
+  document.getElementById('trade-form').style.display = 'block';
+
+  const dayTrades = trades.filter(t => t.date === selectedDate);
+  const total = dayTrades.reduce((s, t) => s + t.pnl, 0);
+
+  const te = document.getElementById('detail-total');
+  if (dayTrades.length > 0) {
+    te.textContent = fmt(total);
+    te.style.color = total > 0 ? 'var(--win)' : total < 0 ? 'var(--loss)' : 'var(--text)';
+  } else { te.textContent = ''; }
+
+  const el = document.getElementById('day-trades');
+  if (dayTrades.length === 0) {
+    el.innerHTML = '<div class="no-trades">記録なし</div>';
+    return;
+  }
+
+  el.innerHTML = dayTrades.map(t => `
+    <div class="trade-item">
+      <div>
+        <div class="trade-pair">${t.pair}</div>
+        <div class="trade-meta">${t.count}回</div>
+        ${t.memo ? `<div class="trade-memo">${t.memo}</div>` : ''}
+      </div>
+      <div class="trade-right">
+        <div class="trade-pnl" style="color:${t.pnl>=0?'var(--win)':'var(--loss)'}">${fmt(t.pnl)}</div>
+        <button class="btn-del" onclick="deleteTrade(${t.id})">×</button>
+      </div>
+    </div>`).join('');
+}
+
+function addTrade() {
+  const pnl = parseFloat(document.getElementById('pnl').value);
+  if (isNaN(pnl)) { alert('損益を入力してください'); return; }
+  const pair = document.getElementById('pair').value;
+  const count = parseInt(document.getElementById('trade-count').value) || 1;
+  const memo = document.getElementById('memo').value.trim();
+
+  trades.push({ id: Date.now(), date: selectedDate, pnl, pair, count, memo });
+  save();
+
+  document.getElementById('pnl').value = '';
+  document.getElementById('memo').value = '';
+  document.getElementById('trade-count').value = '1';
+
+  updateSummary();
+  renderCalendar();
+  renderDayDetail();
+}
+
+function deleteTrade(id) {
+  if (!confirm('削除しますか？')) return;
+  trades = trades.filter(t => t.id !== id);
+  save();
+  updateSummary();
+  renderCalendar();
+  renderDayDetail();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((el, i) => el.classList.toggle('active', ['cal','chart'][i] === tab));
+  document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  if (tab === 'chart') renderCharts();
+}
+
+function renderCharts() {
+  const sorted = [...trades].sort((a,b) => a.date.localeCompare(b.date));
+  let cum = 0;
+  const cumL = [], cumD = [];
+  sorted.forEach(t => {
+    cum += t.pnl;
+    const d = new Date(t.date + 'T00:00:00');
+    cumL.push(d.toLocaleDateString('ja-JP', {month:'numeric',day:'numeric'}));
+    cumD.push(cum);
+  });
+
+  if (charts.cum) charts.cum.destroy();
+  const isPos = (cumD[cumD.length-1]||0) >= 0;
+  charts.cum = new Chart(document.getElementById('chart-cum').getContext('2d'), {
+    type: 'line',
+    data: { labels: cumL, datasets: [{ data: cumD, borderColor: isPos?'#00ff88':'#ff3355', backgroundColor: isPos?'rgba(0,255,136,0.07)':'rgba(255,51,85,0.07)', borderWidth: 2, pointRadius: cumD.length>30?0:3, fill:true, tension:0.3 }] },
+    options: { responsive:true, plugins:{legend:{display:false}}, scales: { x:{ticks:{color:'#555',font:{size:9}},grid:{color:'#1a1a1a'}}, y:{ticks:{color:'#555',font:{size:9},callback:v=>'¥'+v.toLocaleString()},grid:{color:'#1a1a1a'}} } }
+  });
+
+  const mMap = {};
+  trades.forEach(t => { const d=new Date(t.date+'T00:00:00'); const k=`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`; mMap[k]=(mMap[k]||0)+t.pnl; });
+  const mK=Object.keys(mMap).sort(), mV=mK.map(k=>mMap[k]);
+
+  if (charts.monthly) charts.monthly.destroy();
+  charts.monthly = new Chart(document.getElementById('chart-monthly').getContext('2d'), {
+    type: 'bar',
+    data: { labels:mK, datasets:[{ data:mV, backgroundColor:mV.map(v=>v>=0?'rgba(0,255,136,0.65)':'rgba(255,51,85,0.65)'), borderRadius:4 }] },
+    options: { responsive:true, plugins:{legend:{display:false}}, scales: { x:{ticks:{color:'#555',font:{size:9}},grid:{display:false}}, y:{ticks:{color:'#555',font:{size:9},callback:v=>'¥'+v.toLocaleString()},grid:{color:'#1a1a1a'}} } }
+  });
+
+  const pMap = {};
+  trades.forEach(t => { if(!pMap[t.pair]) pMap[t.pair]={total:0,count:0}; pMap[t.pair].total+=t.pnl; pMap[t.pair].count+=t.count; });
+  document.getElementById('pair-stats').innerHTML = Object.entries(pMap).sort((a,b)=>b[1].total-a[1].total).map(([p,s])=>`
+    <div class="pair-item">
+      <div><div class="pair-name">${p}</div><div class="pair-sub">${s.count}回</div></div>
+      <div class="pair-pnl" style="color:${s.total>=0?'var(--win)':'var(--loss)'}">${fmt(s.total)}</div>
+    </div>`).join('');
+}
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+
+init();
+</script>
+</body>
+</html>
