@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FX収支ログ</title>
+<link rel="manifest" href="trade-manifest.json">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="FX収支">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Zen+Kaku+Gothic+New:wght@300;400;700&display=swap');
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #111111;
+  --surface2: #1a1a1a;
+  --border: #222;
+  --accent: #00ff88;
+  --accent2: #ff4466;
+  --text: #e8e8e8;
+  --muted: #555;
+  --win: #00cc66;
+  --loss: #ff3355;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Zen Kaku Gothic New', sans-serif;
+  min-height: 100vh;
+  padding-bottom: 80px;
+}
+
+/* ヘッダー */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(10,10,10,0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header h1 {
+  font-family: 'DM Mono', monospace;
+  font-size: 1rem;
+  letter-spacing: 3px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.header-date {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+/* サマリーカード */
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.summary-item {
+  background: var(--surface);
+  padding: 16px 12px;
+  text-align: center;
+}
+
+.summary-label {
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.summary-value {
+  font-family: 'DM Mono', monospace;
+  font-size: 1.2rem;
+  font-weight: 500;
+  letter-spacing: 1px;
+}
+
+.summary-value.positive { color: var(--win); }
+.summary-value.negative { color: var(--loss); }
+.summary-value.neutral { color: var(--text); }
+
+/* タブ */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.tab {
+  flex: 1;
+  padding: 12px;
+  text-align: center;
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* パネル */
+.panel { display: none; padding: 20px; }
+.panel.active { display: block; }
+
+/* 入力フォーム */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.form-full { grid-column: 1 / -1; }
+
+.form-group label {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+input, select, textarea {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.95rem;
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+}
+
+select option { background: #1a1a1a; }
+textarea { resize: none; height: 70px; font-family: 'Zen Kaku Gothic New', sans-serif; font-size: 0.85rem; }
+
+/* 損益入力の色 */
+input#pnl:focus { border-color: var(--accent); }
+
+.btn-submit {
+  width: 100%;
+  padding: 14px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  margin-top: 4px;
+}
+
+.btn-submit:active { opacity: 0.7; }
+
+/* グラフ */
+.chart-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.chart-title {
+  font-size: 0.65rem;
+  color: var(--muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+canvas { max-height: 200px; }
+
+/* 通貨ペア別統計 */
+.pair-stats {
+  display: grid;
+  gap: 8px;
+}
+
+.pair-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pair-name {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.85rem;
+  letter-spacing: 1px;
+}
+
+.pair-pnl {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* ログ一覧 */
+.log-list { display: grid; gap: 8px; }
+
+.log-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  animation: slideIn 0.25s ease;
+}
+
+.log-item.win { border-left-color: var(--win); }
+.log-item.loss { border-left-color: var(--loss); }
+
+.log-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.log-date {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+.log-pnl {
+  font-family: 'DM Mono', monospace;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.log-pnl.win { color: var(--win); }
+.log-pnl.loss { color: var(--loss); }
+
+.log-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.log-tag {
+  font-size: 0.65rem;
+  color: var(--muted);
+  background: var(--surface2);
+  padding: 2px 8px;
+  border-radius: 3px;
+  letter-spacing: 1px;
+  font-family: 'DM Mono', monospace;
+}
+
+.log-memo {
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.log-delete {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ボトムナビ */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(10,10,10,0.97);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
+  display: flex;
+  padding: 8px 0 env(safe-area-inset-bottom);
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.6rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+
+.nav-item.active { color: var(--accent); }
+.nav-icon { font-size: 1.2rem; line-height: 1; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>FX LOG</h1>
+  <div class="header-date" id="header-date"></div>
+</div>
+
+<div class="summary">
+  <div class="summary-item">
+    <div class="summary-label">累計損益</div>
+    <div class="summary-value" id="total-pnl">¥0</div>
+  </div>
+  <div class="summary-item">
+    <div class="summary-label">今月</div>
+    <div class="summary-value" id="month-pnl">¥0</div>
+  </div>
+  <div class="summary-item">
+    <div class="summary-label">勝率</div>
+    <div class="summary-value neutral" id="win-rate">--%</div>
+  </div>
+</div>
+
+<!-- タブ -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('record')">記録</div>
+  <div class="tab" onclick="switchTab('chart')">グラフ</div>
+  <div class="tab" onclick="switchTab('log')">履歴</div>
+</div>
+
+<!-- 記録パネル -->
+<div class="panel active" id="panel-record">
+  <div class="form-grid">
+    <div class="form-group">
+      <label>日付</label>
+      <input type="date" id="trade-date">
+    </div>
+    <div class="form-group">
+      <label>損益（円）</label>
+      <input type="number" id="pnl" placeholder="例: 3500" step="1">
+    </div>
+    <div class="form-group">
+      <label>通貨ペア</label>
+      <select id="pair">
+        <option value="USD/JPY">USD/JPY</option>
+        <option value="EUR/JPY">EUR/JPY</option>
+        <option value="GBP/JPY">GBP/JPY</option>
+        <option value="AUD/JPY">AUD/JPY</option>
+        <option value="EUR/USD">EUR/USD</option>
+        <option value="GBP/USD">GBP/USD</option>
+        <option value="XAU/USD">XAU/USD</option>
+        <option value="その他">その他</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>トレード回数</label>
+      <input type="number" id="trade-count" placeholder="例: 3" min="1" value="1">
+    </div>
+    <div class="form-group form-full">
+      <label>メモ</label>
+      <textarea id="memo" placeholder="エントリー理由、反省など..."></textarea>
+    </div>
+  </div>
+  <button class="btn-submit" onclick="addTrade()">+ 記録する</button>
+</div>
+
+<!-- グラフパネル -->
+<div class="panel" id="panel-chart">
+  <div class="chart-container">
+    <div class="chart-title">損益推移（累計）</div>
+    <canvas id="chart-cumulative"></canvas>
+  </div>
+  <div class="chart-container">
+    <div class="chart-title">通貨ペア別 損益</div>
+    <canvas id="chart-pair"></canvas>
+  </div>
+  <div class="pair-stats" id="pair-stats"></div>
+</div>
+
+<!-- 履歴パネル -->
+<div class="panel" id="panel-log">
+  <div class="log-list" id="log-list"></div>
+</div>
+
+<script>
+// データ管理
+const STORAGE_KEY = 'fx_trades_v1';
+
+function loadTrades() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch { return []; }
+}
+
+function saveTrades(trades) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(trades));
+}
+
+let trades = loadTrades();
+let charts = {};
+
+// 初期化
+function init() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('trade-date').value = today;
+  document.getElementById('header-date').textContent = new Date().toLocaleDateString('ja-JP', {month:'short', day:'numeric', weekday:'short'});
+  updateSummary();
+  renderLog();
+}
+
+// サマリー更新
+function updateSummary() {
+  const total = trades.reduce((s, t) => s + t.pnl, 0);
+  const now = new Date();
+  const monthTrades = trades.filter(t => {
+    const d = new Date(t.date);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  });
+  const month = monthTrades.reduce((s, t) => s + t.pnl, 0);
+  const wins = trades.filter(t => t.pnl > 0).length;
+  const rate = trades.length > 0 ? Math.round(wins / trades.length * 100) : null;
+
+  const totalEl = document.getElementById('total-pnl');
+  totalEl.textContent = fmt(total);
+  totalEl.className = 'summary-value ' + (total > 0 ? 'positive' : total < 0 ? 'negative' : 'neutral');
+
+  const monthEl = document.getElementById('month-pnl');
+  monthEl.textContent = fmt(month);
+  monthEl.className = 'summary-value ' + (month > 0 ? 'positive' : month < 0 ? 'negative' : 'neutral');
+
+  document.getElementById('win-rate').textContent = rate !== null ? rate + '%' : '--%';
+}
+
+function fmt(n) {
+  const abs = Math.abs(Math.round(n));
+  const str = '¥' + abs.toLocaleString('ja-JP');
+  return n >= 0 ? (n > 0 ? '+' + str : str) : '-' + str;
+}
+
+// 記録追加
+function addTrade() {
+  const date = document.getElementById('trade-date').value;
+  const pnl = parseFloat(document.getElementById('pnl').value);
+  const pair = document.getElementById('pair').value;
+  const count = parseInt(document.getElementById('trade-count').value) || 1;
+  const memo = document.getElementById('memo').value.trim();
+
+  if (!date || isNaN(pnl)) {
+    alert('日付と損益を入力してください');
+    return;
+  }
+
+  const trade = { id: Date.now(), date, pnl, pair, count, memo };
+  trades.unshift(trade);
+  saveTrades(trades);
+
+  document.getElementById('pnl').value = '';
+  document.getElementById('memo').value = '';
+  document.getElementById('trade-count').value = '1';
+
+  updateSummary();
+  renderLog();
+  renderCharts();
+
+  // 記録完了フィードバック
+  const btn = document.querySelector('.btn-submit');
+  btn.textContent = '✓ 記録しました';
+  btn.style.background = '#00cc66';
+  setTimeout(() => {
+    btn.textContent = '+ 記録する';
+    btn.style.background = '';
+  }, 1500);
+}
+
+// 削除
+function deleteTrade(id) {
+  trades = trades.filter(t => t.id !== id);
+  saveTrades(trades);
+  updateSummary();
+  renderLog();
+  renderCharts();
+}
+
+// ログ描画
+function renderLog() {
+  const el = document.getElementById('log-list');
+  if (trades.length === 0) {
+    el.innerHTML = '<div class="empty-state">まだ記録がありません</div>';
+    return;
+  }
+
+  el.innerHTML = trades.map(t => {
+    const cls = t.pnl >= 0 ? 'win' : 'loss';
+    const d = new Date(t.date + 'T00:00:00');
+    const dateStr = d.toLocaleDateString('ja-JP', {month:'numeric', day:'numeric', weekday:'short'});
+    return `
+      <div class="log-item ${cls}">
+        <div class="log-top">
+          <div class="log-date">${dateStr}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="log-pnl ${cls}">${fmt(t.pnl)}</div>
+            <button class="log-delete" onclick="deleteTrade(${t.id})">×</button>
+          </div>
+        </div>
+        <div class="log-meta">
+          <span class="log-tag">${t.pair}</span>
+          <span class="log-tag">${t.count}回</span>
+        </div>
+        ${t.memo ? `<div class="log-memo">${t.memo}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+// グラフ描画
+function renderCharts() {
+  renderCumulativeChart();
+  renderPairChart();
+  renderPairStats();
+}
+
+function renderCumulativeChart() {
+  const sorted = [...trades].sort((a, b) => a.date.localeCompare(b.date));
+  let cum = 0;
+  const labels = [];
+  const data = [];
+
+  sorted.forEach(t => {
+    cum += t.pnl;
+    const d = new Date(t.date + 'T00:00:00');
+    labels.push(d.toLocaleDateString('ja-JP', {month:'numeric', day:'numeric'}));
+    data.push(cum);
+  });
+
+  if (charts.cumulative) charts.cumulative.destroy();
+
+  const ctx = document.getElementById('chart-cumulative').getContext('2d');
+  const isPositive = (data[data.length - 1] || 0) >= 0;
+
+  charts.cumulative = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: isPositive ? '#00ff88' : '#ff3355',
+        backgroundColor: isPositive ? 'rgba(0,255,136,0.08)' : 'rgba(255,51,85,0.08)',
+        borderWidth: 2,
+        pointRadius: data.length > 30 ? 0 : 3,
+        pointBackgroundColor: isPositive ? '#00ff88' : '#ff3355',
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#555', font: { size: 9 } }, grid: { color: '#1a1a1a' } },
+        y: { ticks: { color: '#555', font: { size: 9 }, callback: v => '¥' + v.toLocaleString() }, grid: { color: '#1a1a1a' } }
+      }
+    }
+  });
+}
+
+function renderPairChart() {
+  const pairMap = {};
+  trades.forEach(t => {
+    pairMap[t.pair] = (pairMap[t.pair] || 0) + t.pnl;
+  });
+
+  const pairs = Object.keys(pairMap);
+  const values = pairs.map(p => pairMap[p]);
+  const colors = values.map(v => v >= 0 ? 'rgba(0,255,136,0.7)' : 'rgba(255,51,85,0.7)');
+
+  if (charts.pair) charts.pair.destroy();
+
+  const ctx = document.getElementById('chart-pair').getContext('2d');
+  charts.pair = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: pairs,
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#555', font: { size: 9 } }, grid: { display: false } },
+        y: { ticks: { color: '#555', font: { size: 9 }, callback: v => '¥' + v.toLocaleString() }, grid: { color: '#1a1a1a' } }
+      }
+    }
+  });
+}
+
+function renderPairStats() {
+  const pairMap = {};
+  trades.forEach(t => {
+    if (!pairMap[t.pair]) pairMap[t.pair] = { total: 0, count: 0, wins: 0 };
+    pairMap[t.pair].total += t.pnl;
+    pairMap[t.pair].count += t.count;
+    if (t.pnl > 0) pairMap[t.pair].wins++;
+  });
+
+  const el = document.getElementById('pair-stats');
+  el.innerHTML = Object.entries(pairMap)
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([pair, s]) => `
+      <div class="pair-item">
+        <div>
+          <div class="pair-name">${pair}</div>
+          <div style="font-size:0.65rem;color:var(--muted);margin-top:2px">${s.count}回</div>
+        </div>
+        <div class="pair-pnl" style="color:${s.total >= 0 ? 'var(--win)' : 'var(--loss)'}">${fmt(s.total)}</div>
+      </div>`).join('');
+}
+
+// タブ切り替え
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle('active', ['record','chart','log'][i] === tab);
+  });
+  document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  if (tab === 'chart') renderCharts();
+}
+
+// SW登録
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./trade-sw.js').catch(() => {});
+}
+
+init();
+</script>
+</body>
+</html>
